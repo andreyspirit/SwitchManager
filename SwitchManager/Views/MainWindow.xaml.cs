@@ -1,4 +1,5 @@
-﻿using System.Windows;
+﻿using SwitchManager.ViewModels;
+using System.Windows;
 
 namespace SwitchManager.Views
 {

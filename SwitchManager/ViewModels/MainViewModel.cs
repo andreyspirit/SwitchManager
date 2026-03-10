@@ -1,23 +1,24 @@
 ﻿using System;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Windows.Input;
 using SwitchManager.Models;
 using SwitchManager.Services;
 using SwitchManager.Commands;
+using System.IO.Ports;
 
 namespace SwitchManager.ViewModels
 {
     public class MainViewModel : ViewModelBase
     {
+        private readonly ISerialService _serialService;
         private readonly ConfigService _configService;
-        private readonly SerialService _serialService;
+        private string _statusMessage = "Ready";
 
+        // Collection of groups to be displayed in the UI
         public ObservableCollection<GroupViewModel> PortGroups { get; } = new();
 
-        private string? _statusMessage;
-        public string? StatusMessage
+        public string StatusMessage
         {
             get => _statusMessage;
             set => SetProperty(ref _statusMessage, value);
@@ -25,81 +26,93 @@ namespace SwitchManager.ViewModels
 
         public ICommand ToggleCommand { get; }
 
-        public MainViewModel()
+        // Default constructor for XAML/Designer support
+        public MainViewModel() : this(null)
         {
-            _configService = new ConfigService();
-            _serialService = new SerialService();
-            _serialService.OnLogReceived += (msg) => StatusMessage = msg;
+            // This calls the constructor with parameters using 'null' as the default service
+        }
 
-            // RelayCommand is in the same namespace now
-            ToggleCommand = new RelayCommand(obj => {
-                if (obj is PortViewModel pvm) TogglePort(pvm);
-            }, _ => _serialService.IsConnected);
+        public MainViewModel(ISerialService? serialService = null)
+        {
+            // Dependency Injection: Use mock for tests or create real service
+            _serialService = serialService ?? new SerialService();
+            _configService = new ConfigService();
+
+            ToggleCommand = new RelayCommand<PortViewModel>(ExecuteToggle);
 
             InitializeApp();
         }
 
-        private async void InitializeApp()
+        private void InitializeApp()
         {
-            var config = _configService.LoadConfig();
-            if (config != null)
+            try
             {
-                // Load UI groups
-                foreach (var g in config.Groups)
-                    PortGroups.Add(new GroupViewModel(g, ToggleCommand));
+                var config = _configService.LoadConfig();
 
-                // Auto-connect using DefaultPort from JSON
+                // 1. First, try to connect to the hardware
                 try
                 {
-                    _serialService.Connect(config.DefaultComPort);
-                    await SyncHardwareState();
+                    _serialService.Connect(config.ComPort, config.BaudRate);
+                    StatusMessage = $"Connected to {config.ComPort}";
                 }
-                catch (Exception ex) { StatusMessage = $"Auto-connect failed: {ex.Message}"; }
-            }
-        }
-
-        private async Task SyncHardwareState()
-        {
-            var states = await _serialService.SyncWithHardwareAsync();
-            foreach (var group in PortGroups)
-            {
-                foreach (var pvm in group.Ports)
+                catch (Exception portEx)
                 {
-                    if (states.TryGetValue(pvm.Number, out bool isOpen))
-                        pvm.IsActive = isOpen;
+                    // If port fails, show error but continue to UI generation
+                    StatusMessage = $"Hardware Error: {portEx.Message}";
                 }
+
+                // 2. Generate UI groups regardless of connection status
+                foreach (var group in config.Groups)
+                {
+                    PortGroups.Add(new GroupViewModel(group, ToggleCommand));
+                }
+            }
+            catch (Exception ex)
+            {
+                // Critical error (e.g., config file missing)
+                StatusMessage = $"Critical Error: {ex.Message}";
             }
         }
 
-        private void TogglePort(PortViewModel clickedPort)
+        private void ExecuteToggle(PortViewModel clickedPort)
         {
+            // Verify connection before sending commands
+            if (!_serialService.IsConnected)
+            {
+                StatusMessage = "Error: Switch is not connected.";
+                return;
+            }
+
+            // Locate the group containing the clicked port
             var group = PortGroups.FirstOrDefault(g => g.Ports.Contains(clickedPort));
             if (group == null) return;
 
-            // 1. If active -> Turn OFF (Signal Loss)
-            if (clickedPort.IsActive)
+            if (!clickedPort.IsActive)
             {
-                clickedPort.IsActive = false;
-                _serialService.SendConfigCommand(clickedPort.Number, false);
+                // Mutual exclusion logic: Turn on selected, turn off others in group
+                // Comparing 'Type' as an Enum instead of a string
+                foreach (var port in group.Ports.Where(p => p.Type != PortType.Target))
+                {
+                    if (port == clickedPort)
+                    {
+                        port.IsActive = true;
+                        _serialService.SendConfigCommand(port.Number, port.VlanId, true);
+                    }
+                    else if (port.IsActive)
+                    {
+                        port.IsActive = false;
+                        _serialService.SendConfigCommand(port.Number, port.VlanId, false);
+                    }
+                }
+                StatusMessage = $"Group {group.GroupName}: {clickedPort.Alias} is now ACTIVE";
             }
             else
             {
-                // 2. Exclusive selection within the group (Sources only)
-                foreach (var port in group.Ports.Where(p => p.Type == PortType.Source))
-                {
-                    if (port.IsActive)
-                    {
-                        port.IsActive = false;
-                        _serialService.SendConfigCommand(port.Number, false);
-                    }
-                }
-                clickedPort.IsActive = true;
-                _serialService.SendConfigCommand(clickedPort.Number, true);
+                // Toggle off (Signal Loss / Manual shutdown)
+                clickedPort.IsActive = false;
+                _serialService.SendConfigCommand(clickedPort.Number, clickedPort.VlanId, false);
+                StatusMessage = $"Group {group.GroupName}: {clickedPort.Alias} DISCONNECTED";
             }
-
-            // 3. Background: Ensure Target port is always UP
-            var target = group.Ports.FirstOrDefault(p => p.Type == PortType.Target);
-            if (target != null) _serialService.SendConfigCommand(target.Number, true);
         }
     }
 }

@@ -1,5 +1,6 @@
 {
-  "DefaultPort": "COM3",
+  "ComPort": "COM3",
+  "BaudRate": 9600,
   "Groups": [
     {
       "GroupName": "CNN",

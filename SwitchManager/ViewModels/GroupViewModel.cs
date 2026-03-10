@@ -8,14 +8,20 @@ namespace SwitchManager.ViewModels
     {
         public string GroupName { get; }
         public int VlanId { get; }
+
+        // Collection of ports to be displayed in the UI
         public ObservableCollection<PortViewModel> Ports { get; } = new();
 
         public GroupViewModel(PortGroup group, ICommand toggleCommand)
         {
             GroupName = group.GroupName;
-            VlanId = group.VlanId;
+            VlanId = group.VlanId; // Assuming PortGroup model has VlanId
+
             foreach (var p in group.Ports)
-                Ports.Add(new PortViewModel(p, toggleCommand));
+            {
+                // Pass VlanId to each PortViewModel
+                Ports.Add(new PortViewModel(p, toggleCommand, VlanId));
+            }
         }
     }
 }

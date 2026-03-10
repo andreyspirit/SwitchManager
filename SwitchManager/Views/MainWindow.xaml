@@ -7,6 +7,57 @@
         WindowStartupLocation="CenterScreen" 
         ResizeMode="CanMinimize" 
         Background="#F2F2F2">
+
+    <Window.Resources>
+        <Style x:Key="PortButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="180"/>
+            <Setter Property="Height" Value="85"/>
+            <Setter Property="Margin" Value="0,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="MainBorder" 
+                                Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="MainBorder" Property="BorderBrush" Value="DodgerBlue"/>
+                                <Setter TargetName="MainBorder" Property="BorderThickness" Value="4"/>
+                            </Trigger>
+
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="MainBorder" Property="Opacity" Value="0.7"/>
+                            </Trigger>
+
+                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                <Setter Property="Background" Value="#A5D6A7"/>
+                                <Setter Property="BorderBrush" Value="#2E7D32"/>
+                                <Setter Property="BorderThickness" Value="4"/>
+                            </DataTrigger>
+
+                            <DataTrigger Binding="{Binding IsActive}" Value="False">
+                                <Setter Property="Background" Value="#FFCCBC"/>
+                                <Setter Property="BorderBrush" Value="#D84315"/>
+                                <Setter Property="BorderThickness" Value="4"/>
+                            </DataTrigger>
+
+                            <DataTrigger Binding="{Binding Type}" Value="Target">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
     <Window.DataContext>
         <vm:MainViewModel />
     </Window.DataContext>
@@ -40,31 +91,7 @@
                                         <DataTemplate>
                                             <Button Command="{Binding DataContext.ToggleCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
                                                     CommandParameter="{Binding}"
-                                                    Width="180" Height="85" Margin="0,6"
-                                                    BorderThickness="4" BorderBrush="Black">
-                                                <Button.Style>
-                                                    <Style TargetType="Button">
-                                                        <Setter Property="Background" Value="#F8F8F8"/>
-                                                        <Setter Property="BorderBrush" Value="#333333"/>
-                                                        <Setter Property="Visibility" Value="Visible"/>
-
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Type}" Value="Target">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                            </DataTrigger>
-
-                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                                <Setter Property="Background" Value="#A5D6A7"/>
-                                                                <Setter Property="BorderBrush" Value="#2E7D32"/>
-                                                            </DataTrigger>
-
-                                                            <DataTrigger Binding="{Binding IsActive}" Value="False">
-                                                                <Setter Property="Background" Value="#FFCCBC"/>
-                                                                <Setter Property="BorderBrush" Value="#D84315"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Button.Style>
+                                                    Style="{StaticResource PortButtonStyle}">
                                                 <TextBlock Text="{Binding Alias}" FontSize="22" FontWeight="Bold"/>
                                             </Button>
                                         </DataTemplate>
