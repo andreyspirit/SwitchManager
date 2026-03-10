@@ -1,0 +1,85 @@
+{
+  "DefaultPort": "COM3",
+  "Groups": [
+    {
+      "GroupName": "CNN",
+      "VlanId": 10,
+      "Ports": [
+        {
+          "Number": 1,
+          "Alias": "REAL",
+          "Type": "Source"
+        },
+        {
+          "Number": 2,
+          "Alias": "SIM",
+          "Type": "Source"
+        },
+        {
+          "Number": 3,
+          "Type": "Target"
+        }
+      ]
+    },
+    {
+      "GroupName": "BBC",
+      "VlanId": 20,
+      "Ports": [
+        {
+          "Number": 14,
+          "Alias": "REAL",
+          "Type": "Source"
+        },
+        {
+          "Number": 15,
+          "Alias": "SIM",
+          "Type": "Source"
+        },
+        {
+          "Number": 16,
+          "Type": "Target"
+        }
+      ]
+    },
+    {
+      "GroupName": "FOXNEWS",
+      "VlanId": 30,
+      "Ports": [
+        {
+          "Number": 22,
+          "Alias": "REAL",
+          "Type": "Source"
+        },
+        {
+          "Number": 23,
+          "Alias": "SIM",
+          "Type": "Source"
+        },
+        {
+          "Number": 24,
+          "Type": "Target"
+        }
+      ]
+    },
+    {
+      "GroupName": "CDN",
+      "VlanId": 40,
+      "Ports": [
+        {
+          "Number": 7,
+          "Alias": "REAL",
+          "Type": "Source"
+        },
+        {
+          "Number": 8,
+          "Alias": "SIM",
+          "Type": "Source"
+        },
+        {
+          "Number": 9,
+          "Type": "Target"
+        }
+      ]
+    }
+  ]
+}
