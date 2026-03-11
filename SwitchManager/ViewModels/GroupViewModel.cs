@@ -1,26 +1,33 @@
 ﻿using System.Collections.ObjectModel;
-using System.Windows.Input;
+using System.Linq;
 using SwitchManager.Models;
 
 namespace SwitchManager.ViewModels
 {
-    public class GroupViewModel
+    public class GroupViewModel : ViewModelBase
     {
         public string GroupName { get; }
         public int VlanId { get; }
-
-        // Collection of ports to be displayed in the UI
+        public int TargetPortNumber { get; }
         public ObservableCollection<PortViewModel> Ports { get; } = new();
 
-        public GroupViewModel(PortGroup group, ICommand toggleCommand)
+        public GroupViewModel(PortGroup group)
         {
             GroupName = group.GroupName;
-            VlanId = group.VlanId; // Assuming PortGroup model has VlanId
+            VlanId = group.VlanId;
 
-            foreach (var p in group.Ports)
+            // 1. Extract the port number designated as "Target" in the JSON
+            var target = group.Ports.FirstOrDefault(p => p.Type == PortType.Target);
+            TargetPortNumber = target?.Number ?? 0;
+
+            // 2. Filter and add only "Source" ports (e.g., REAL, SIM) to the button collection
+            // This prevents empty buttons for the Target port itself
+            var sourcePorts = group.Ports.Where(p => p.Type == PortType.Source);
+            foreach (var p in sourcePorts)
             {
-                // Pass VlanId to each PortViewModel
-                Ports.Add(new PortViewModel(p, toggleCommand, VlanId));
+                var portVm = new PortViewModel(p);
+                portVm.TargetVlanId = VlanId;
+                Ports.Add(portVm);
             }
         }
     }

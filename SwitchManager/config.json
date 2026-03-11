@@ -1,6 +1,7 @@
 {
-  "ComPort": "COM3",
+  "ComPort": "COM5",
   "BaudRate": 9600,
+  "IsolationVlanId": 999,
   "Groups": [
     {
       "GroupName": "CNN",

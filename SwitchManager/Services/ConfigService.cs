@@ -9,7 +9,7 @@ namespace SwitchManager.Services
     {
         private const string ConfigFileName = "config.json";
 
-        public SwitchConfig? LoadConfig()
+        public SwitchConfig LoadConfig()
         {
             try
             {

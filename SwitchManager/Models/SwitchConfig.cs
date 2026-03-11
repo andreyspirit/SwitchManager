@@ -11,6 +11,10 @@ namespace SwitchManager.Models
         [JsonPropertyName("BaudRate")]
         public int BaudRate { get; set; } = 9600;
 
+        // The "Black Hole" VLAN for isolated ports
+        [JsonPropertyName("IsolationVlanId")]
+        public int IsolationVlanId { get; set; } = 999;
+
         [JsonPropertyName("Groups")]
         public List<PortGroup> Groups { get; set; } = new();
     }

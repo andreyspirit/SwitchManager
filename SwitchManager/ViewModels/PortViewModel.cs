@@ -1,31 +1,65 @@
 ﻿using SwitchManager.Models;
-using SwitchManager.ViewModels;
-using System.Windows.Input;
 
-public class PortViewModel : ViewModelBase
+namespace SwitchManager.ViewModels
 {
-    private readonly PortEntry _model;
-    private bool _isActive;
-
-    // We store the VlanId here, passed from the group
-    public int VlanId { get; }
-
-    public PortViewModel(PortEntry model, ICommand toggleCommand, int vlanId)
+    public class PortViewModel : ViewModelBase
     {
-        _model = model;
-        ToggleCommand = toggleCommand;
-        VlanId = vlanId; // Set the VLAN ID from the parent group
+        // Fields for internal state
+        private bool _isActive;
+        private bool _isPhysicallyConnected;
+        private string _fullInterfaceName;
+        private PortType _type;
+
+        // Properties from config.json
+        public int Number { get; }
+        public string Alias { get; }
+
+        // The VLAN ID this port should switch to when "Active"
+        public int TargetVlanId { get; set; }
+
+        public PortType Type
+        {
+            get => _type;
+            set => SetProperty(ref _type, value);
+        }
+
+        // The actual name from the switch (e.g., "Fa0/1" or "Gi1/0/24")
+        // Discovered during the Audit step
+        public string FullInterfaceName
+        {
+            get => _fullInterfaceName;
+            set => SetProperty(ref _fullInterfaceName, value);
+        }
+
+        // Physical Layer (L1): Is the cable plugged in? 
+        // If false -> Button turns Grey in UI
+        public bool IsPhysicallyConnected
+        {
+            get => _isPhysicallyConnected;
+            set => SetProperty(ref _isPhysicallyConnected, value);
+        }
+
+        // Logical Layer (L2): Is the port in the correct Target VLAN?
+        // True -> Green, False -> Orange
+        public bool IsActive
+        {
+            get => _isActive;
+            set => SetProperty(ref _isActive, value);
+        }
+
+        /// <summary>
+        /// Constructor with 1 argument to fix CS1729 compilation error.
+        /// Information like TargetVlanId will be assigned after creation.
+        /// </summary>
+        public PortViewModel(PortEntry port)
+        {
+            Number = port.Number;
+            Alias = port.Alias;
+            Type = port.Type;
+            // Default values before the hardware Audit runs
+            _fullInterfaceName = string.Empty;
+            _isPhysicallyConnected = true;
+            _isActive = false;
+        }
     }
-
-    public int Number => _model.Number;
-    public string Alias => _model.Alias ?? "Unknown";
-    public PortType Type => _model.Type;
-
-    public bool IsActive
-    {
-        get => _isActive;
-        set => SetProperty(ref _isActive, value);
-    }
-
-    public ICommand ToggleCommand { get; }
 }

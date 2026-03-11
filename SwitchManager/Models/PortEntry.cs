@@ -14,7 +14,7 @@ namespace SwitchManager.Models
         public int Number { get; set; }
 
         [JsonPropertyName("Alias")]
-        public string? Alias { get; set; }
+        public string Alias { get; set; }
 
         [JsonPropertyName("Type")]
         [JsonConverter(typeof(JsonStringEnumConverter))]
