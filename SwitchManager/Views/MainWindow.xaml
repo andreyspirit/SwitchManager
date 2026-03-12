@@ -4,6 +4,7 @@
         xmlns:vm="clr-namespace:SwitchManager.ViewModels"
         xmlns:conv="clr-namespace:SwitchManager.Converters"
         Title="Switch Ports Control System" Height="750" Width="1100" 
+        ResizeMode="CanMinimize"
         Background="#F4F7F9" WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
@@ -42,6 +43,13 @@
                                 <Setter Property="Foreground" Value="#263238"/>
                                 <Setter Property="Opacity" Value="1.0"/>
                                 <Setter Property="IsEnabled" Value="False"/>
+                            </DataTrigger>
+
+                            <DataTrigger Binding="{Binding DataContext.IsTargetLinkActive, RelativeSource={RelativeSource AncestorType=ItemsControl, AncestorLevel=2}}" Value="False">
+                                <Setter Property="Background" Value="#B0BEC5"/>
+                                <Setter Property="Foreground" Value="#546E7A"/>
+                                <Setter Property="IsEnabled" Value="False"/>
+                                <Setter Property="Opacity" Value="0.5"/>
                             </DataTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -82,7 +90,19 @@
                                 <!-- Target Port Number display -->
                                 <TextBlock Text="{Binding TargetPortNumber, StringFormat='Port {0}'}" 
                                            FontSize="12" Foreground="#7F8C8D" FontWeight="Bold"
-                                           HorizontalAlignment="Center" Margin="0,2,0,15"/>
+                                           HorizontalAlignment="Center" Margin="0,2,0,15">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#7F8C8D"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsTargetLinkActive}" Value="False">
+                                                    <Setter Property="Text" Value="TARGET LINK DOWN"/>
+                                                    <Setter Property="Foreground" Value="#C0392B"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
 
                                 <!-- Button list for Source ports -->
                                 <ItemsControl ItemsSource="{Binding Ports}">

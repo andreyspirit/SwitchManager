@@ -11,10 +11,18 @@ namespace SwitchManager.ViewModels
         public int TargetPortNumber { get; }
         public ObservableCollection<PortViewModel> Ports { get; } = new();
 
+        private bool _isTargetLinkActive = true;
+        public bool IsTargetLinkActive
+        {
+            get => _isTargetLinkActive;
+            set => SetProperty(ref _isTargetLinkActive, value);
+        }
+
         public GroupViewModel(PortGroup group)
         {
             GroupName = group.GroupName;
             VlanId = group.VlanId;
+            IsTargetLinkActive = false;
 
             // 1. Extract the port number designated as "Target" in the JSON
             var target = group.Ports.FirstOrDefault(p => p.Type == PortType.Target);
@@ -28,7 +36,7 @@ namespace SwitchManager.ViewModels
                 var portVm = new PortViewModel(p);
                 portVm.TargetVlanId = VlanId;
                 Ports.Add(portVm);
-            }
+            }           
         }
     }
 }

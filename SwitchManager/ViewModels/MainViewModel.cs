@@ -15,7 +15,7 @@ namespace SwitchManager.ViewModels
         private readonly ISerialService _serialService;
         private readonly ConfigService _configService;
         private SwitchConfig? _currentConfig;
-        private string _statusMessage = "Ready";
+        private string _statusMessage = "System Ready";
 
         public ObservableCollection<GroupViewModel> PortGroups { get; } = new();
 
@@ -27,18 +27,13 @@ namespace SwitchManager.ViewModels
 
         public ICommand ToggleCommand { get; }
 
-        public MainViewModel() : this(null)
-        {
-        }
+        public MainViewModel() : this(null) { }
 
         public MainViewModel(ISerialService? serialService = null)
         {
             _serialService = serialService ?? new SerialService();
             _configService = new ConfigService();
-
-            // Note: RelativeSource binding in XAML is preferred, but we keep the command here
             ToggleCommand = new RelayCommand<PortViewModel>(async (p) => await ExecuteToggleAsync(p));
-
             InitializeApp();
         }
 
@@ -53,34 +48,31 @@ namespace SwitchManager.ViewModels
                     return;
                 }
 
-                // 1. Generate UI structure first
                 foreach (var group in _currentConfig.Groups)
                 {
-                    // Using the simplified constructor we fixed earlier
                     PortGroups.Add(new GroupViewModel(group));
                 }
 
-                // 2. Connect to Hardware
                 try
                 {
                     _serialService.Connect(_currentConfig.ComPort, _currentConfig.BaudRate);
                     StatusMessage = $"Connected to {_currentConfig.ComPort}. Syncing...";
-
-                    // 3. Initial Audit to see who is actually connected and in which VLAN
                     await AuditHardwareAsync();
                 }
                 catch (Exception ex)
                 {
-                    StatusMessage = $"Hardware Error: {ex.Message}";
-
-                    foreach (var group in PortGroups)
+                    if (ex.Message.Contains("Could not find file"))
                     {
-                        foreach (var port in group.Ports)
-                        {
-                            // This will trigger the LAST DataTrigger in XAML and turn buttons gray
-                            port.IsPhysicallyConnected = false;
-                        }
+                        StatusMessage = "I/O Failure: Physical layer link failure. COM5 resource not found on system bus.";
                     }
+                    else
+                    {
+                        StatusMessage = $"Hardware Fault: {ex.Message}";
+                    }
+
+                    // LINQ FIX: Reset both Source ports AND Target Link Status in groups
+                    PortGroups.SelectMany(g => g.Ports).ToList().ForEach(p => p.IsPhysicallyConnected = false);
+                    PortGroups.ToList().ForEach(g => g.IsTargetLinkActive = false);
                 }
             }
             catch (Exception ex)
@@ -89,9 +81,6 @@ namespace SwitchManager.ViewModels
             }
         }
 
-        /// <summary>
-        /// Reads "show interfaces status" and syncs UI with reality using Regex.
-        /// </summary>
         public async Task AuditHardwareAsync()
         {
             if (!_serialService.IsConnected) return;
@@ -99,7 +88,6 @@ namespace SwitchManager.ViewModels
             string rawData = await _serialService.GetHardwareStatusAsync();
             if (string.IsNullOrEmpty(rawData)) return;
 
-            // Regex for: [Interface] [Name/Descr] [Status] [Vlan]
             var lineRegex = new Regex(@"^(\S+)\s+(.*?)\s+(connected|notconnect|disabled|err-disabled)\s+(\d+|trunk)", RegexOptions.Multiline);
             var matches = lineRegex.Matches(rawData);
 
@@ -108,20 +96,28 @@ namespace SwitchManager.ViewModels
                 string fullName = match.Groups[1].Value;
                 string status = match.Groups[3].Value;
                 string vlanRaw = match.Groups[4].Value;
-
-                // Find port by number (logic: last digits of the name)
                 int portNum = ParsePortNumber(fullName);
-                var portVm = PortGroups.SelectMany(g => g.Ports).FirstOrDefault(p => p.Number == portNum);
+                bool hasLink = (status == "connected");
 
+                // 1. UPDATE SOURCE PORTS (Buttons)
+                var portVm = PortGroups.SelectMany(g => g.Ports).FirstOrDefault(p => p.Number == portNum);
                 if (portVm != null)
                 {
                     portVm.FullInterfaceName = fullName;
-                    portVm.IsPhysicallyConnected = (status == "connected");
+                    portVm.IsPhysicallyConnected = hasLink;
 
                     if (int.TryParse(vlanRaw, out int currentVlan))
                     {
                         portVm.IsActive = (currentVlan == portVm.TargetVlanId);
                     }
+                }
+
+                // 2. UPDATE TARGET LINK STATUS (Group Header)
+                // If the audited port number matches a group's TargetPortNumber, update that group
+                var groupVm = PortGroups.FirstOrDefault(g => g.TargetPortNumber == portNum);
+                if (groupVm != null)
+                {
+                    groupVm.IsTargetLinkActive = hasLink;
                 }
             }
             StatusMessage = $"Sync Complete: {DateTime.Now.ToShortTimeString()}";
@@ -136,20 +132,17 @@ namespace SwitchManager.ViewModels
                 var group = PortGroups.FirstOrDefault(g => g.Ports.Contains(clickedPort));
                 if (group == null) return;
 
-                // Logic: One source per group. Target ports are always active in their VLAN.
                 int isolationVlan = _currentConfig.IsolationVlanId;
 
-                foreach (var port in group.Ports.Where(p => p.Type == PortType.Source))
+                foreach (var port in group.Ports) // Simplified: we update all source ports in the group
                 {
                     if (port == clickedPort && !clickedPort.IsActive)
                     {
-                        // Switch ON: Move to Target VLAN
                         await _serialService.SetPortVlanAsync(port.FullInterfaceName, port.TargetVlanId);
                         port.IsActive = true;
                     }
                     else
                     {
-                        // Switch OFF: Move to Black Hole (VLAN 999)
                         await _serialService.SetPortVlanAsync(port.FullInterfaceName, isolationVlan);
                         port.IsActive = false;
                     }
