@@ -11,15 +11,17 @@ namespace SwitchManager.Services
         private SerialPort? _serialPort;
         public bool IsConnected => _serialPort?.IsOpen ?? false;
 
-        public void Connect(string portName, int baudRate)
+        public async Task ConnectAsync(string portName, int baudRate)
         {
             try
             {
+                // Close the existing port if it is already open
                 if (_serialPort != null && _serialPort.IsOpen)
                 {
                     _serialPort.Close();
                 }
 
+                // Initialize serial port with standard console settings
                 _serialPort = new SerialPort(portName, baudRate, Parity.None, 8, StopBits.One)
                 {
                     Handshake = Handshake.None,
@@ -29,7 +31,14 @@ namespace SwitchManager.Services
 
                 _serialPort.Open();
 
-                // Disable pagination so the switch sends the whole table without --More--
+                // Wait for the hardware interface to stabilize after opening the port
+                await Task.Delay(2000);
+
+                // Send an initial Enter to wake up the console prompt
+                _serialPort.WriteLine("");
+                await Task.Delay(1000);
+
+                // Disable pagination to ensure the switch sends the entire output without "--More--" prompts
                 _serialPort.WriteLine("terminal length 0");
 
                 Debug.WriteLine($"Connected to {portName} at {baudRate} bps.");
@@ -37,7 +46,7 @@ namespace SwitchManager.Services
             catch (Exception ex)
             {
                 Debug.WriteLine($"Connection failed: {ex.Message}");
-                throw;
+                throw; // Re-throw to allow the ViewModel to catch and display the error
             }
         }
 
@@ -60,6 +69,7 @@ namespace SwitchManager.Services
             try
             {
                 _serialPort!.DiscardInBuffer();
+
                 _serialPort.WriteLine("show interfaces status");
 
                 // Use Task.Delay to keep the UI responsive while waiting for the buffer to fill

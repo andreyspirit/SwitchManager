@@ -58,7 +58,7 @@ namespace SwitchManager.ViewModels
             Type = port.Type;
             // Default values before the hardware Audit runs
             _fullInterfaceName = string.Empty;
-            _isPhysicallyConnected = true;
+            _isPhysicallyConnected = false;
             _isActive = false;
         }
     }

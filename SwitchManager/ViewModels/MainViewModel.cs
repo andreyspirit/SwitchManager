@@ -15,7 +15,7 @@ namespace SwitchManager.ViewModels
         private readonly ISerialService _serialService;
         private readonly ConfigService _configService;
         private SwitchConfig? _currentConfig;
-        private string _statusMessage = "System Ready";
+        private string _statusMessage = string.Empty;
 
         public ObservableCollection<GroupViewModel> PortGroups { get; } = new();
 
@@ -25,7 +25,8 @@ namespace SwitchManager.ViewModels
             set => SetProperty(ref _statusMessage, value);
         }
 
-        public ICommand ToggleCommand { get; }
+        // Using the updated asynchronous-capable RelayCommand
+        public RelayCommand<PortViewModel> ToggleCommand { get; }
 
         public MainViewModel() : this(null) { }
 
@@ -33,8 +34,20 @@ namespace SwitchManager.ViewModels
         {
             _serialService = serialService ?? new SerialService();
             _configService = new ConfigService();
-            ToggleCommand = new RelayCommand<PortViewModel>(async (p) => await ExecuteToggleAsync(p));
+
+            // Pass ExecuteToggleAsync AND the validation logic (CanToggle)
+            ToggleCommand = new RelayCommand<PortViewModel>(ExecuteToggleAsync, CanToggle);
+
             InitializeApp();
+        }
+
+        // This method controls if the button is enabled or disabled
+        private bool CanToggle(PortViewModel port)
+        {
+            // The button is ENABLED only if:
+            // 1. Port is not null
+            // 2. Physical link is active (IsPhysicallyConnected)
+            return port != null && port.IsPhysicallyConnected;
         }
 
         private async void InitializeApp()
@@ -44,7 +57,7 @@ namespace SwitchManager.ViewModels
                 _currentConfig = _configService.LoadConfig();
                 if (_currentConfig == null)
                 {
-                    StatusMessage = "Critical Error: Could not load config.json";
+                    StatusMessage = $"Critical Error: Could not load {_configService.ConfigFileName}";
                     return;
                 }
 
@@ -55,24 +68,14 @@ namespace SwitchManager.ViewModels
 
                 try
                 {
-                    _serialService.Connect(_currentConfig.ComPort, _currentConfig.BaudRate);
-                    StatusMessage = $"Connected to {_currentConfig.ComPort}. Syncing...";
+                    await _serialService.ConnectAsync(_currentConfig.ComPort, _currentConfig.BaudRate);
+
+                    // Initial hardware audit
                     await AuditHardwareAsync();
                 }
                 catch (Exception ex)
                 {
-                    if (ex.Message.Contains("Could not find file"))
-                    {
-                        StatusMessage = "I/O Failure: Physical layer link failure. COM5 resource not found on system bus.";
-                    }
-                    else
-                    {
-                        StatusMessage = $"Hardware Fault: {ex.Message}";
-                    }
-
-                    // LINQ FIX: Reset both Source ports AND Target Link Status in groups
-                    PortGroups.SelectMany(g => g.Ports).ToList().ForEach(p => p.IsPhysicallyConnected = false);
-                    PortGroups.ToList().ForEach(g => g.IsTargetLinkActive = false);
+                    HandleHardwareError(ex);
                 }
             }
             catch (Exception ex)
@@ -83,13 +86,27 @@ namespace SwitchManager.ViewModels
 
         public async Task AuditHardwareAsync()
         {
-            if (!_serialService.IsConnected) return;
+            if (!_serialService.IsConnected)
+            {
+                return;
+            }
 
             string rawData = await _serialService.GetHardwareStatusAsync();
-            if (string.IsNullOrEmpty(rawData)) return;
+
+            if (string.IsNullOrEmpty(rawData))
+            {
+                StatusMessage = $"No response from switch. Check connection {_currentConfig?.ComPort}.";
+                return;
+            }
 
             var lineRegex = new Regex(@"^(\S+)\s+(.*?)\s+(connected|notconnect|disabled|err-disabled)\s+(\d+|trunk)", RegexOptions.Multiline);
             var matches = lineRegex.Matches(rawData);
+
+            if (matches.Count == 0)
+            {
+                StatusMessage = "Protocol Error: Unexpected data format from the switch.";
+                return;
+            }
 
             foreach (Match match in matches)
             {
@@ -99,7 +116,7 @@ namespace SwitchManager.ViewModels
                 int portNum = ParsePortNumber(fullName);
                 bool hasLink = (status == "connected");
 
-                // 1. UPDATE SOURCE PORTS (Buttons)
+                // 1. Update Source ports (Buttons)
                 var portVm = PortGroups.SelectMany(g => g.Ports).FirstOrDefault(p => p.Number == portNum);
                 if (portVm != null)
                 {
@@ -108,12 +125,12 @@ namespace SwitchManager.ViewModels
 
                     if (int.TryParse(vlanRaw, out int currentVlan))
                     {
+                        // RULE 2: Button is "Active" (Green) if link exists and VLAN matches target
                         portVm.IsActive = (currentVlan == portVm.TargetVlanId);
                     }
                 }
 
-                // 2. UPDATE TARGET LINK STATUS (Group Header)
-                // If the audited port number matches a group's TargetPortNumber, update that group
+                // 2. Update Group header status (Target port)
                 var groupVm = PortGroups.FirstOrDefault(g => g.TargetPortNumber == portNum);
                 if (groupVm != null)
                 {
@@ -123,9 +140,11 @@ namespace SwitchManager.ViewModels
             StatusMessage = $"Sync Complete: {DateTime.Now.ToShortTimeString()}";
         }
 
-        private async Task ExecuteToggleAsync(PortViewModel clickedPort)
+        public async Task ExecuteToggleAsync(PortViewModel clickedPort)
         {
-            if (clickedPort == null || !_serialService.IsConnected || _currentConfig == null) return;
+            // RULE 1: If there is no physical link, abort execution (button should already be disabled)
+            if (clickedPort == null || !clickedPort.IsPhysicallyConnected || !_serialService.IsConnected || _currentConfig == null)
+                return;
 
             try
             {
@@ -134,7 +153,7 @@ namespace SwitchManager.ViewModels
 
                 int isolationVlan = _currentConfig.IsolationVlanId;
 
-                foreach (var port in group.Ports) // Simplified: we update all source ports in the group
+                foreach (var port in group.Ports)
                 {
                     if (port == clickedPort && !clickedPort.IsActive)
                     {
@@ -143,16 +162,32 @@ namespace SwitchManager.ViewModels
                     }
                     else
                     {
+                        // All other source ports in the group are moved to the isolation VLAN
                         await _serialService.SetPortVlanAsync(port.FullInterfaceName, isolationVlan);
                         port.IsActive = false;
                     }
                 }
-                StatusMessage = $"Updated {group.GroupName} selection.";
             }
             catch (Exception ex)
             {
                 StatusMessage = $"Command Error: {ex.Message}";
             }
+        }
+
+        private void HandleHardwareError(Exception ex)
+        {
+            if (ex.Message.Contains("Could not find file"))
+            {
+                StatusMessage = $"I/O Failure: {_currentConfig.ComPort} interface unavailable.";
+            }
+            else
+            {
+                StatusMessage = $"Hardware Fault: {ex.Message}";
+            }
+
+            // Reset all connection states using LINQ on failure
+            PortGroups.SelectMany(g => g.Ports).ToList().ForEach(p => p.IsPhysicallyConnected = false);
+            PortGroups.ToList().ForEach(g => g.IsTargetLinkActive = false);
         }
 
         private int ParsePortNumber(string name)

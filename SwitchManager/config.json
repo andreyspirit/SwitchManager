@@ -1,5 +1,5 @@
 {
-  "ComPort": "COM5",
+  "ComPort": "COM3",
   "BaudRate": 9600,
   "IsolationVlanId": 999,
   "Groups": [

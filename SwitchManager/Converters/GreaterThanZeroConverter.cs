@@ -2,7 +2,7 @@
 using System.Globalization;
 using System.Windows.Data;
 
-namespace SwitchManager.Converters // Убедись, что namespace совпадает
+namespace SwitchManager.Converters
 {
     public class GreaterThanZeroConverter : IValueConverter
     {

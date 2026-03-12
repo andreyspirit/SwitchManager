@@ -5,8 +5,10 @@ namespace SwitchManager.Services
     public interface ISerialService
     {
         public bool IsConnected { get; }
-        public void Connect(string portName, int baudRate);
-        public void Disconnect();
+
+        public  void Disconnect();
+
+        public Task ConnectAsync(string portName, int baudRate);
 
         // Async method to get the status table
         public Task<string> GetHardwareStatusAsync();
