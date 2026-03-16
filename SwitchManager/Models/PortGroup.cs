@@ -10,12 +10,12 @@ namespace SwitchManager.Models
     public class PortGroup
     {
         [JsonPropertyName("GroupName")]
-        public string GroupName { get; set; } = string.Empty;
+        public string GroupName { get; set; }
 
         [JsonPropertyName("VlanId")]
         public int VlanId { get; set; }
 
         [JsonPropertyName("Ports")]
-        public List<PortEntry> Ports { get; set; } = new();
+        public List<PortEntry> Ports { get; set; }
     }
 }

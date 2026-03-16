@@ -6,16 +6,16 @@ namespace SwitchManager.Models
     public class SwitchConfig
     {
         [JsonPropertyName("ComPort")]
-        public string ComPort { get; set; } = "COM1";
+        public string ComPort { get; set; }
 
         [JsonPropertyName("BaudRate")]
-        public int BaudRate { get; set; } = 9600;
+        public int BaudRate { get; set; }
 
         // The "Black Hole" VLAN for isolated ports
         [JsonPropertyName("IsolationVlanId")]
-        public int IsolationVlanId { get; set; } = 999;
+        public int IsolationVlanId { get; set; }
 
         [JsonPropertyName("Groups")]
-        public List<PortGroup> Groups { get; set; } = new();
+        public List<PortGroup> Groups { get; set; }
     }
 }

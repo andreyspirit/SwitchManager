@@ -15,38 +15,61 @@ namespace SwitchManager.Services
         {
             try
             {
-                // Close the existing port if it is already open
+                // 1. Close the existing port if it is already open
                 if (_serialPort != null && _serialPort.IsOpen)
                 {
                     _serialPort.Close();
                 }
 
-                // Initialize serial port with standard console settings
+                // 2. Initialize serial port with strict timeout and buffer settings
                 _serialPort = new SerialPort(portName, baudRate, Parity.None, 8, StopBits.One)
                 {
                     Handshake = Handshake.None,
-                    ReadTimeout = 2000,
-                    WriteTimeout = 2000
+                    ReadTimeout = 3000, // Slightly increased for slower legacy hardware
+                    WriteTimeout = 1000,
+                    NewLine = "\r\n"
                 };
 
                 _serialPort.Open();
 
-                // Wait for the hardware interface to stabilize after opening the port
-                await Task.Delay(2000);
+                // 3. Stabilization delay after hardware handshake
+                await Task.Delay(1500);
 
-                // Send an initial Enter to wake up the console prompt
+                // 4. Verification Step: Send 'Enter' and check for any prompt response
+                _serialPort.DiscardInBuffer(); // Clear any boot-up noise
                 _serialPort.WriteLine("");
                 await Task.Delay(1000);
 
+                string initialResponse = _serialPort.ReadExisting();
+
+                // If the switch returns nothing, the cable or hardware is likely disconnected
+                if (string.IsNullOrWhiteSpace(initialResponse))
+                {
+                    _serialPort.Close();
+                    throw new Exception("Hardware not responding. Check the console cable and switch power.");
+                }
+
+                // 5. Setup terminal environment for automated parsing
+                // We enter 'enable' first just in case we are in User EXEC mode
+                _serialPort.WriteLine("enable");
+                await Task.Delay(200);
+
                 // Disable pagination to ensure the switch sends the entire output without "--More--" prompts
                 _serialPort.WriteLine("terminal length 0");
+                await Task.Delay(200);
 
-                Debug.WriteLine($"Connected to {portName} at {baudRate} bps.");
+                // Final buffer cleanup
+                _serialPort.DiscardInBuffer();
+
+                Debug.WriteLine($"Successfully established session on {portName} at {baudRate} bps.");
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Connection failed: {ex.Message}");
-                throw; // Re-throw to allow the ViewModel to catch and display the error
+                Debug.WriteLine($"Connection sequence failed: {ex.Message}");
+                // Ensure port is not left in an inconsistent state
+                if (_serialPort != null && _serialPort.IsOpen) _serialPort.Close();
+
+                throw; // Re-throw with descriptive hardware error for the UI
             }
         }
 
@@ -73,7 +96,7 @@ namespace SwitchManager.Services
                 _serialPort.WriteLine("show interfaces status");
 
                 // Use Task.Delay to keep the UI responsive while waiting for the buffer to fill
-                await Task.Delay(1000);
+                await Task.Delay(3000);
 
                 return _serialPort.ReadExisting();
             }
@@ -87,30 +110,28 @@ namespace SwitchManager.Services
         /// <summary>
         /// Asynchronously sends commands to change a port's VLAN.
         /// </summary>
-        public async Task SetPortVlanAsync(string fullInterfaceName, int vlanId)
+        public async Task SetPortVlanAsync(string interfaceName, int vlanId)
         {
-            if (!IsConnected) return;
-
             try
             {
-                // We build a command sequence to change VLAN without using shutdown
-                StringBuilder sb = new StringBuilder();
-                sb.AppendLine("conf t");
-                sb.AppendLine($"interface {fullInterfaceName}");
-                sb.AppendLine($"switchport access vlan {vlanId}");
-                sb.AppendLine("end");
+                _serialPort.WriteLine("conf t");
+                await Task.Delay(150);
 
-                // Writing to SerialPort is fast, but we wrap it in Task.Run for safety
-                await Task.Run(() =>
-                {
-                    _serialPort?.Write(sb.ToString());
-                });
+                _serialPort.WriteLine($"interface {interfaceName}");
+                await Task.Delay(100);
 
-                Debug.WriteLine($"Successfully moved {fullInterfaceName} to VLAN {vlanId}");
+                _serialPort.WriteLine("switchport mode access");
+                await Task.Delay(50);
+
+                _serialPort.WriteLine($"switchport access vlan {vlanId}");
+                await Task.Delay(400);
+
+                _serialPort.WriteLine("end");
+                await Task.Delay(150);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error sending VLAN command: {ex.Message}");
+                Debug.WriteLine($"[SerialService] Error setting VLAN: {ex.Message}");
             }
         }
     }

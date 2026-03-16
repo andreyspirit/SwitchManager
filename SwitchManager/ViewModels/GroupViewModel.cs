@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.Linq;
+using System.Windows.Media;
 using SwitchManager.Models;
 
 namespace SwitchManager.ViewModels
@@ -7,11 +8,15 @@ namespace SwitchManager.ViewModels
     public class GroupViewModel : ViewModelBase
     {
         public string GroupName { get; }
-        public int VlanId { get; }
-        public int TargetPortNumber { get; }
-        public ObservableCollection<PortViewModel> Ports { get; } = new();
 
-        private bool _isTargetLinkActive = true;
+        public int VlanId { get; }
+
+        public int TargetPortNumber { get; }
+
+        public ObservableCollection<PortViewModel> Ports { get; }
+
+        private bool _isTargetLinkActive;
+
         public bool IsTargetLinkActive
         {
             get => _isTargetLinkActive;
@@ -20,9 +25,9 @@ namespace SwitchManager.ViewModels
 
         public GroupViewModel(PortGroup group)
         {
+            Ports = new ObservableCollection<PortViewModel>();
             GroupName = group.GroupName;
             VlanId = group.VlanId;
-            IsTargetLinkActive = false;
 
             // 1. Extract the port number designated as "Target" in the JSON
             var target = group.Ports.FirstOrDefault(p => p.Type == PortType.Target);

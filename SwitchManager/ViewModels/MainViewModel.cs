@@ -7,6 +7,8 @@ using System.Text.RegularExpressions;
 using SwitchManager.Models;
 using SwitchManager.Services;
 using SwitchManager.Commands;
+using System.Diagnostics;
+using System.Windows;
 
 namespace SwitchManager.ViewModels
 {
@@ -17,7 +19,7 @@ namespace SwitchManager.ViewModels
         private SwitchConfig? _currentConfig;
         private string _statusMessage = string.Empty;
 
-        public ObservableCollection<GroupViewModel> PortGroups { get; } = new();
+        public ObservableCollection<GroupViewModel> PortGroups { get; }
 
         public string StatusMessage
         {
@@ -34,6 +36,7 @@ namespace SwitchManager.ViewModels
         {
             _serialService = serialService ?? new SerialService();
             _configService = new ConfigService();
+            PortGroups = new ObservableCollection<GroupViewModel>();
 
             // Pass ExecuteToggleAsync AND the validation logic (CanToggle)
             ToggleCommand = new RelayCommand<PortViewModel>(ExecuteToggleAsync, CanToggle);
@@ -54,48 +57,51 @@ namespace SwitchManager.ViewModels
         {
             try
             {
-                _currentConfig = _configService.LoadConfig();
-                if (_currentConfig == null)
-                {
-                    StatusMessage = $"Critical Error: Could not load {_configService.ConfigFileName}";
-                    return;
-                }
+                // 1. Load and validate configuration from config.json
+                // This performs strict checks on unique VLANs, port numbers, and mandatory fields
+                _currentConfig = _configService.LoadAndValidateConfig();
 
+                // Populate the UI with port groups defined in the configuration
                 foreach (var group in _currentConfig.Groups)
                 {
                     PortGroups.Add(new GroupViewModel(group));
                 }
 
-                try
-                {
-                    await _serialService.ConnectAsync(_currentConfig.ComPort, _currentConfig.BaudRate);
+                // 2. Establish connection to the hardware via Serial Port
+                // Verifies if the switch is responsive before proceeding
+                await _serialService.ConnectAsync(_currentConfig.ComPort, _currentConfig.BaudRate);
 
-                    // Initial hardware audit
-                    await AuditHardwareAsync();
-                }
-                catch (Exception ex)
-                {
-                    HandleHardwareError(ex);
-                }
+                // 3. Perform initial hardware audit to sync UI state with the switch
+                // This ensures the "Config is Law" principle is applied immediately
+                await AuditHardwareAsync();
+
+                StatusMessage = "Ready";
             }
             catch (Exception ex)
             {
-                StatusMessage = $"Critical Error: {ex.Message}";
+                // Construct a detailed error message for the user
+                string errorMessage = $"Critical Error during startup:\n\n{ex.Message}\n\n" +
+                                     "The application cannot proceed and will now close.";
+
+                // Show a modal error dialog to ensure the user notices the failure
+                MessageBox.Show(errorMessage, "Startup Failure", MessageBoxButton.OK, MessageBoxImage.Error);
+
+                _serialService?.Disconnect(); 
+                // Best Practice: Shutdown the application if the environment is not properly initialized
+                // This prevents unpredictable behavior or damage to the test setup
+                Application.Current.Shutdown();
             }
         }
 
         public async Task AuditHardwareAsync()
         {
-            if (!_serialService.IsConnected)
-            {
-                return;
-            }
+            if (!_serialService.IsConnected) return;
 
             string rawData = await _serialService.GetHardwareStatusAsync();
 
             if (string.IsNullOrEmpty(rawData))
             {
-                StatusMessage = $"No response from switch. Check connection {_currentConfig?.ComPort}.";
+                StatusMessage = "No response from switch. Check connection.";
                 return;
             }
 
@@ -104,7 +110,7 @@ namespace SwitchManager.ViewModels
 
             if (matches.Count == 0)
             {
-                StatusMessage = "Protocol Error: Unexpected data format from the switch.";
+                StatusMessage = "Protocol Error: Unexpected data format.";
                 return;
             }
 
@@ -115,29 +121,39 @@ namespace SwitchManager.ViewModels
                 string vlanRaw = match.Groups[4].Value;
                 int portNum = ParsePortNumber(fullName);
                 bool hasLink = (status == "connected");
+                int.TryParse(vlanRaw, out int currentVlan);
 
-                // 1. Update Source ports (Buttons)
+                var targetGroup = PortGroups.FirstOrDefault(g => g.TargetPortNumber == portNum);
+                if (targetGroup != null)
+                {
+                    targetGroup.IsTargetLinkActive = hasLink;
+
+                    if (currentVlan != targetGroup.VlanId && currentVlan != 0) 
+                    {
+                        await _serialService.SetPortVlanAsync(fullName, targetGroup.VlanId);
+                    }
+                    continue;
+                }
+
                 var portVm = PortGroups.SelectMany(g => g.Ports).FirstOrDefault(p => p.Number == portNum);
                 if (portVm != null)
                 {
                     portVm.FullInterfaceName = fullName;
                     portVm.IsPhysicallyConnected = hasLink;
 
-                    if (int.TryParse(vlanRaw, out int currentVlan))
+                    if (!hasLink)
                     {
-                        // RULE 2: Button is "Active" (Green) if link exists and VLAN matches target
+
+                        portVm.IsActive = false;
+                    }
+                    else
+                    {
                         portVm.IsActive = (currentVlan == portVm.TargetVlanId);
                     }
                 }
-
-                // 2. Update Group header status (Target port)
-                var groupVm = PortGroups.FirstOrDefault(g => g.TargetPortNumber == portNum);
-                if (groupVm != null)
-                {
-                    groupVm.IsTargetLinkActive = hasLink;
-                }
             }
-            StatusMessage = $"Sync Complete: {DateTime.Now.ToShortTimeString()}";
+
+            StatusMessage = $"Audit Complete: {DateTime.Now.ToLongTimeString()}";
         }
 
         public async Task ExecuteToggleAsync(PortViewModel clickedPort)

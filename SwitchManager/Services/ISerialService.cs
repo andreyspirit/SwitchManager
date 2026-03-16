@@ -4,16 +4,16 @@ namespace SwitchManager.Services
 {
     public interface ISerialService
     {
-        public bool IsConnected { get; }
+        bool IsConnected { get; }
 
-        public  void Disconnect();
+        void Disconnect();
 
-        public Task ConnectAsync(string portName, int baudRate);
+        Task ConnectAsync(string portName, int baudRate);
 
         // Async method to get the status table
-        public Task<string> GetHardwareStatusAsync();
+        Task<string> GetHardwareStatusAsync();
 
         // Async method to change VLAN
-        public Task SetPortVlanAsync(string fullInterfaceName, int vlanId);
+        Task SetPortVlanAsync(string fullInterfaceName, int vlanId);
     }
 }
