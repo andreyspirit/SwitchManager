@@ -45,17 +45,26 @@ namespace SwitchManager.Services
 
         private void Validate(SwitchConfig config)
         {
-            if (config == null) throw new Exception("JSON is empty or corrupted.");
+            if (config == null)
+            {
+                throw new Exception("JSON is empty or corrupted.");
+            }
 
             // 1. Global settings validation
             if (string.IsNullOrWhiteSpace(config.ComPort))
+            {
                 throw new Exception("COM port is not specified in config.json.");
+            }
 
             if (config.BaudRate <= 0)
+            {
                 throw new Exception("BaudRate must be a positive integer.");
+            }
 
             if (config.IsolationVlanId <= 0)
+            {
                 throw new Exception("IsolationVlanId must be a positive integer.");
+            }
 
             var allVlanIds = new HashSet<int>();
             var allPortNumbers = new HashSet<int>();
@@ -64,44 +73,62 @@ namespace SwitchManager.Services
             allVlanIds.Add(config.IsolationVlanId);
 
             if (config.Groups == null || !config.Groups.Any())
+            {
                 throw new Exception("No groups defined in configuration.");
+            }
 
             foreach (var group in config.Groups)
             {
                 // 2. Group header validation
                 if (string.IsNullOrWhiteSpace(group.GroupName))
+                {
                     throw new Exception("Group Name is missing.");
+                }
 
                 // Check if VlanId is unique and not equal to IsolationVlanId
                 if (!allVlanIds.Add(group.VlanId))
+                {
                     throw new Exception($"Duplicate or reserved VlanId detected: {group.VlanId} (Group: {group.GroupName})");
+                }
 
                 // 3. Port collection validation
                 if (group.Ports == null || !group.Ports.Any())
+                {
                     throw new Exception($"Group '{group.GroupName}' has no ports.");
+                }
 
                 int targetCount = group.Ports.Count(p => p.Type == PortType.Target);
                 int sourceCount = group.Ports.Count(p => p.Type == PortType.Source);
 
                 if (targetCount != 1)
+                {
                     throw new Exception($"Group '{group.GroupName}' must have exactly one Target port (Found: {targetCount}).");
+                }
 
                 if (sourceCount < 1)
+                {
                     throw new Exception($"Group '{group.GroupName}' must have at least one Source port.");
+                }
 
                 // 4. Individual port validation
                 foreach (var port in group.Ports)
                 {
                     if (port.Number <= 0)
+                    {
                         throw new Exception($"Invalid port number ({port.Number}) in group '{group.GroupName}'.");
+                    }
 
                     // Ensure physical port numbers are unique across the entire switch
                     if (!allPortNumbers.Add(port.Number))
+                    {
                         throw new Exception($"Duplicate physical Port Number detected: {port.Number}");
+                    }
 
                     // Sources must have an Alias (REAL/SIM), Targets do not require it
                     if (port.Type == PortType.Source && string.IsNullOrWhiteSpace(port.Alias))
+                    {
                         throw new Exception($"Source Port {port.Number} in group '{group.GroupName}' is missing an Alias.");
+                    }
                 }
             }
         }

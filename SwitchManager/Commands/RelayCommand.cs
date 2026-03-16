@@ -21,9 +21,12 @@ namespace SwitchManager.Commands
         {
         }
 
-        public bool CanExecute(object? parameter)
+        public bool CanExecute(object parameter)
         {
-            if (_isExecuting) return false;
+            if (_isExecuting)
+            {
+                return false;
+            }
 
             return _canExecute == null || _canExecute((T)parameter!);
         }
@@ -35,7 +38,10 @@ namespace SwitchManager.Commands
 
         public async Task ExecuteAsync(T parameter)
         {
-            if (!CanExecute(parameter)) return;
+            if (!CanExecute(parameter))
+            {
+                return;
+            }
 
             try
             {

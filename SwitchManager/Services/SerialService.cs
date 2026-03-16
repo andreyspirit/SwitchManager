@@ -45,8 +45,7 @@ namespace SwitchManager.Services
                 // If the switch returns nothing, the cable or hardware is likely disconnected
                 if (string.IsNullOrWhiteSpace(initialResponse))
                 {
-                    _serialPort.Close();
-                    throw new Exception("Hardware not responding. Check the console cable and switch power.");
+                    throw new Exception($"Hardware not responding on port {portName}.");
                 }
 
                 // 5. Setup terminal environment for automated parsing
@@ -60,14 +59,14 @@ namespace SwitchManager.Services
 
                 // Final buffer cleanup
                 _serialPort.DiscardInBuffer();
-
-                Debug.WriteLine($"Successfully established session on {portName} at {baudRate} bps.");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Debug.WriteLine($"Connection sequence failed: {ex.Message}");
                 // Ensure port is not left in an inconsistent state
-                if (_serialPort != null && _serialPort.IsOpen) _serialPort.Close();
+                if (_serialPort != null && _serialPort.IsOpen)
+                {
+                    _serialPort.Close();
+                }
 
                 throw; // Re-throw with descriptive hardware error for the UI
             }
@@ -78,7 +77,6 @@ namespace SwitchManager.Services
             if (_serialPort != null && _serialPort.IsOpen)
             {
                 _serialPort.Close();
-                Debug.WriteLine("Serial port closed.");
             }
         }
 
@@ -92,18 +90,20 @@ namespace SwitchManager.Services
             try
             {
                 _serialPort!.DiscardInBuffer();
-
                 _serialPort.WriteLine("show interfaces status");
 
-                // Use Task.Delay to keep the UI responsive while waiting for the buffer to fill
-                await Task.Delay(3000);
+                string response = await ReadUntilPromptAsync();
 
-                return _serialPort.ReadExisting();
+                if (string.IsNullOrWhiteSpace(response))
+                {
+                    throw new Exception("Switch did not respond to status command.");
+                }
+
+                return response;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error reading status: {ex.Message}");
-                return string.Empty;
+                throw new Exception($"Hardware error: {ex.Message}");
             }
         }
 
@@ -131,8 +131,37 @@ namespace SwitchManager.Services
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[SerialService] Error setting VLAN: {ex.Message}");
+                throw new Exception($"[SerialService] Error setting VLAN: {ex.Message}");
             }
+        }
+
+        private async Task<string> ReadUntilPromptAsync(int timeoutMs = 5000)
+        {
+            var sb = new StringBuilder();
+            var stopWatch = Stopwatch.StartNew();
+            string[] prompts = { "#", ">" };
+
+            while (stopWatch.ElapsedMilliseconds < timeoutMs)
+            {
+                if (_serialPort.BytesToRead > 0)
+                {
+                    string chunk = _serialPort.ReadExisting();
+                    sb.Append(chunk);
+
+                    string currentOutput = sb.ToString().TrimEnd();
+
+                    foreach (var prompt in prompts)
+                    {
+                        if (currentOutput.EndsWith(prompt))
+                        {
+                            return sb.ToString();
+                        }
+                    }
+                }
+                await Task.Delay(50);
+            }
+
+            return sb.ToString();
         }
     }
 }

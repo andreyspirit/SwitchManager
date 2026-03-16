@@ -7,28 +7,20 @@ namespace SwitchManager.ViewModels
         // Fields for internal state
         private bool _isActive;
         private bool _isPhysicallyConnected;
-        private string _fullInterfaceName;
-        private PortType _type;
+        private bool _existsOnHardware = true;
 
-        // Properties from config.json
         public int Number { get; }
+
         public string Alias { get; }
 
-        // The VLAN ID this port should switch to when "Active"
         public int TargetVlanId { get; set; }
 
-        public PortType Type
-        {
-            get => _type;
-            set => SetProperty(ref _type, value);
-        }
+        public string FullInterfaceName { get; set; } = string.Empty;
 
-        // The actual name from the switch (e.g., "Fa0/1" or "Gi1/0/24")
-        // Discovered during the Audit step
-        public string FullInterfaceName
+        public bool ExistsOnHardware
         {
-            get => _fullInterfaceName;
-            set => SetProperty(ref _fullInterfaceName, value);
+            get => _existsOnHardware;
+            set => SetProperty(ref _existsOnHardware, value);
         }
 
         // Physical Layer (L1): Is the cable plugged in? 
@@ -55,11 +47,6 @@ namespace SwitchManager.ViewModels
         {
             Number = port.Number;
             Alias = port.Alias;
-            Type = port.Type;
-            // Default values before the hardware Audit runs
-            _fullInterfaceName = string.Empty;
-            _isPhysicallyConnected = false;
-            _isActive = false;
         }
     }
 }
