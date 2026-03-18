@@ -45,7 +45,7 @@ namespace SwitchManager.Services
                 // If the switch returns nothing, the cable or hardware is likely disconnected
                 if (string.IsNullOrWhiteSpace(initialResponse))
                 {
-                    throw new Exception($"Hardware not responding on port {portName}.");
+                    throw new Exception($"Hardware is not responding on port {portName}.");
                 }
 
                 // 5. Setup terminal environment for automated parsing

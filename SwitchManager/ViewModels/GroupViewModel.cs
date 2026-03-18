@@ -1,27 +1,31 @@
 ﻿using System.Collections.ObjectModel;
 using System.Linq;
-using System.Windows.Media;
 using SwitchManager.Models;
 
 namespace SwitchManager.ViewModels
 {
     public class GroupViewModel : ViewModelBase
     {
+        private string _targetPortStatus;
+        private bool _existsOnHardware;
+
         public string GroupName { get; }
-
         public int VlanId { get; }
-
         public int TargetPortNumber { get; }
 
-        public ObservableCollection<PortViewModel> Ports { get; }
-
-        private bool _isTargetLinkActive;
-
-        public bool IsTargetLinkActive
+        public bool ExistsOnHardware
         {
-            get => _isTargetLinkActive;
-            set => SetProperty(ref _isTargetLinkActive, value);
+            get => _existsOnHardware;
+            set => SetProperty(ref _existsOnHardware, value);
         }
+
+        public string TargetPortStatus
+        {
+            get => _targetPortStatus;
+            set => SetProperty(ref _targetPortStatus, value);
+        }
+
+        public ObservableCollection<PortViewModel> Ports { get; }
 
         public GroupViewModel(PortGroup group)
         {
@@ -29,19 +33,20 @@ namespace SwitchManager.ViewModels
             GroupName = group.GroupName;
             VlanId = group.VlanId;
 
-            // 1. Extract the port number designated as "Target" in the JSON
+            // 1. Находим целевой порт (Target)
             var target = group.Ports.FirstOrDefault(p => p.Type == PortType.Target);
             TargetPortNumber = target?.Number ?? 0;
 
-            // 2. Filter and add only "Source" ports (e.g., REAL, SIM) to the button collection
-            // This prevents empty buttons for the Target port itself
+            // 2. Добавляем только порты-источники (Source) в коллекцию кнопок
             var sourcePorts = group.Ports.Where(p => p.Type == PortType.Source);
             foreach (var p in sourcePorts)
             {
-                var portVm = new PortViewModel(p);
-                portVm.TargetVlanId = VlanId;
+                var portVm = new PortViewModel(p)
+                {
+                    TargetVlanId = VlanId,
+                };
                 Ports.Add(portVm);
-            }           
+            }
         }
     }
 }

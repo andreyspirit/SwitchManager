@@ -4,17 +4,13 @@ namespace SwitchManager.ViewModels
 {
     public class PortViewModel : ViewModelBase
     {
-        // Fields for internal state
         private bool _isActive;
-        private bool _isPhysicallyConnected;
-        private bool _existsOnHardware = true;
+        private bool _existsOnHardware;
+        private string _portStatus;
 
         public int Number { get; }
-
         public string Alias { get; }
-
         public int TargetVlanId { get; set; }
-
         public string FullInterfaceName { get; set; } = string.Empty;
 
         public bool ExistsOnHardware
@@ -23,26 +19,18 @@ namespace SwitchManager.ViewModels
             set => SetProperty(ref _existsOnHardware, value);
         }
 
-        // Physical Layer (L1): Is the cable plugged in? 
-        // If false -> Button turns Grey in UI
-        public bool IsPhysicallyConnected
+        public string PortStatus
         {
-            get => _isPhysicallyConnected;
-            set => SetProperty(ref _isPhysicallyConnected, value);
+            get => _portStatus;
+            set => SetProperty(ref _portStatus, value);
         }
 
-        // Logical Layer (L2): Is the port in the correct Target VLAN?
-        // True -> Green, False -> Orange
         public bool IsActive
         {
             get => _isActive;
             set => SetProperty(ref _isActive, value);
         }
 
-        /// <summary>
-        /// Constructor with 1 argument to fix CS1729 compilation error.
-        /// Information like TargetVlanId will be assigned after creation.
-        /// </summary>
         public PortViewModel(PortEntry port)
         {
             Number = port.Number;

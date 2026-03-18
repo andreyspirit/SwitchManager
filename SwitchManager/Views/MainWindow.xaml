@@ -24,7 +24,6 @@
                                 BorderBrush="{TemplateBinding BorderBrush}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="MainBorder" Property="BorderBrush" Value="#3498DB"/>
@@ -43,7 +42,6 @@
                     <Setter Property="Background" Value="#27AE60"/>
                     <Setter Property="BorderBrush" Value="#1E8449"/>
                 </DataTrigger>
-
                 <DataTrigger Binding="{Binding ExistsOnHardware}" Value="False">
                     <Setter Property="IsEnabled" Value="False"/>
                     <Setter Property="Opacity" Value="0.3"/>
@@ -79,15 +77,36 @@
                                 <TextBlock Text="{Binding GroupName}" FontSize="24" FontWeight="Black" 
                                            HorizontalAlignment="Center" Foreground="#2C3E50"/>
 
-                                <TextBlock FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,5,0,15">
+                                <TextBlock FontSize="15" FontWeight="ExtraBold" HorizontalAlignment="Center" Margin="0,5,0,15">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Text" Value="{Binding TargetPortNumber, StringFormat='Port {0} Inactive'}"/>
-                                            <Setter Property="Foreground" Value="#E74C3C"/>
+                                            <Setter Property="Text">
+                                                <Setter.Value>
+                                                    <MultiBinding StringFormat="Port {0} {1}">
+                                                        <Binding Path="TargetPortNumber" />
+                                                        <Binding Path="TargetPortStatus" />
+                                                    </MultiBinding>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Setter Property="Foreground" Value="#7F8C8D"/>
+
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsTargetLinkActive}" Value="True">
-                                                    <Setter Property="Text" Value="{Binding TargetPortNumber, StringFormat='Port {0} Active'}"/>
-                                                    <Setter Property="Foreground" Value="#2ECC71"/>
+                                                <DataTrigger Binding="{Binding TargetPortStatus}" Value="connected">
+                                                    <Setter Property="Foreground" Value="#27AE60"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding TargetPortStatus}" Value="notconnect">
+                                                    <Setter Property="Foreground" Value="#C0392B"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding TargetPortStatus}" Value="disabled">
+                                                    <Setter Property="Foreground" Value="#D35400"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding TargetPortStatus}" Value="err-disabled">
+                                                    <Setter Property="Foreground" Value="#8E44AD"/>
+                                                </DataTrigger>
+
+                                                <DataTrigger Binding="{Binding ExistsOnHardware}" Value="False">
+                                                    <Setter Property="Text" Value="{Binding TargetPortNumber, StringFormat='Port {0} NOT FOUND'}"/>
+                                                    <Setter Property="Foreground" Value="#E74C3C"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -104,18 +123,33 @@
                                                     <TextBlock Text="{Binding Alias}" FontSize="22" FontWeight="Bold"/>
                                                 </Button>
 
-                                                <TextBlock FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center">
+                                                <TextBlock FontSize="13" FontWeight="Bold" HorizontalAlignment="Center">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
-                                                            <Setter Property="Text" Value="{Binding Number, StringFormat='Port {0} Inactive'}"/>
-                                                            <Setter Property="Foreground" Value="#C0392B"/>
+                                                            <Setter Property="Text">
+                                                                <Setter.Value>
+                                                                    <MultiBinding StringFormat="Port {0} {1}">
+                                                                        <Binding Path="Number" />
+                                                                        <Binding Path="PortStatus" />
+                                                                    </MultiBinding>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                            <Setter Property="Foreground" Value="#7F8C8D"/>
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsPhysicallyConnected}" Value="True">
-                                                                    <Setter Property="Text" Value="{Binding Number, StringFormat='Port {0} Active'}"/>
-                                                                    <Setter Property="Foreground" Value="#2ECC71"/>
+                                                                <DataTrigger Binding="{Binding PortStatus}" Value="connected">
+                                                                    <Setter Property="Foreground" Value="#27AE60"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding PortStatus}" Value="notconnect">
+                                                                    <Setter Property="Foreground" Value="#C0392B"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding PortStatus}" Value="disabled">
+                                                                    <Setter Property="Foreground" Value="#D35400"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding PortStatus}" Value="err-disabled">
+                                                                    <Setter Property="Foreground" Value="#8E44AD"/>
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding ExistsOnHardware}" Value="False">
-                                                                    <Setter Property="Text" Value="NOT FOUND"/>
+                                                                    <Setter Property="Text" Value="{Binding Number, StringFormat='Port {0} NOT FOUND'}"/>
                                                                     <Setter Property="Foreground" Value="#E74C3C"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>

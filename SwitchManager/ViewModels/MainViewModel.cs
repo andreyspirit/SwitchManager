@@ -86,11 +86,12 @@ namespace SwitchManager.ViewModels
 
         public async Task AuditHardwareAsync()
         {
-            if (!_serialService.IsConnected) 
-            { 
+            if (!_serialService.IsConnected)
+            {
                 return;
             }
 
+            // Get the full output from the switch (e.g., 'show interface status')
             string rawData = await _serialService.GetHardwareStatusAsync();
             if (string.IsNullOrEmpty(rawData))
             {
@@ -98,50 +99,56 @@ namespace SwitchManager.ViewModels
                 return;
             }
 
-            // Regex for Cisco 'show interface status' output
+            // 1. Reset hardware existence status for all groups and ports before audit
+            foreach (var group in PortGroups)
+            {
+                group.ExistsOnHardware = false;
+                foreach (var port in group.Ports)
+                {
+                    port.ExistsOnHardware = false;
+                }
+            }
+
+            // Regex for Cisco-like output parsing
             var lineRegex = new Regex(@"^(\S+)\s+(.*?)\s+(connected|notconnect|disabled|err-disabled)\s+(\d+|trunk)", RegexOptions.Multiline);
             var matches = lineRegex.Matches(rawData);
-
-            var physicalPortNumbers = matches.Cast<Match>()
-                .Select(m => ParsePortNumber(m.Groups[1].Value))
-                .ToHashSet();
 
             foreach (Match match in matches)
             {
                 string fullName = match.Groups[1].Value;
-                bool hasLink = (match.Groups[3].Value == "connected");
+                string status = match.Groups[3].Value;
                 int.TryParse(match.Groups[4].Value, out int currentVlan);
                 int portNum = ParsePortNumber(fullName);
 
-                // Target Header Update
+                // 2. Update Group (Target Port) Header
                 var targetGroup = PortGroups.FirstOrDefault(g => g.TargetPortNumber == portNum);
                 if (targetGroup != null)
                 {
-                    targetGroup.IsTargetLinkActive = hasLink;
-                    // Auto-fix Target VLAN if it differs from config
+                    targetGroup.ExistsOnHardware = true;
+                    targetGroup.TargetPortStatus = status;
+
+                    // Auto-fix VLAN if it differs from the desired configuration
                     if (currentVlan != targetGroup.VlanId && currentVlan != 0)
+                    {
                         await _serialService.SetPortVlanAsync(fullName, targetGroup.VlanId);
-                    continue;
+                    }
                 }
 
-                // Source Ports Update
+                // 3. Update Source Port (List Item)
+                // Using FirstOrDefault since JSON validation ensures unique physical-to-logic mapping
                 var portVm = PortGroups.SelectMany(g => g.Ports).FirstOrDefault(p => p.Number == portNum);
                 if (portVm != null)
                 {
+                    portVm.ExistsOnHardware = true;
                     portVm.FullInterfaceName = fullName;
-                    portVm.IsPhysicallyConnected = hasLink;
 
-                    // REFACTOR: Color is Green only if VLAN matches TargetVlanId
-                    // No dependency on physical link for button color
+                    // Port is active (Green) only if VLAN matches the target
                     portVm.IsActive = (currentVlan == portVm.TargetVlanId);
+                    portVm.PortStatus = status;
                 }
             }
 
-            // Cross-check config against physical hardware reality
-            foreach (var port in PortGroups.SelectMany(g => g.Ports))
-            {
-                port.ExistsOnHardware = physicalPortNumbers.Contains(port.Number);
-            }
+            StatusMessage = $"Audit completed at {DateTime.Now:HH:mm:ss}";
         }
 
         public async Task ExecuteToggleAsync(PortViewModel clickedPort)
