@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.Windows;
 using System.ComponentModel;
 using System.Windows.Input;
+using System.IO;
 
 namespace SwitchManager.ViewModels
 {
@@ -19,14 +20,22 @@ namespace SwitchManager.ViewModels
         private readonly ConfigService _configService;
         private SwitchConfig _currentConfig;
         private string _statusMessage = string.Empty;
+        private bool _isBusy;
 
         public ObservableCollection<GroupViewModel> PortGroups { get; }
         public RelayCommand<PortViewModel> ToggleCommand { get; }
+        public RelayCommand<object> AuditCommand { get; }
 
         public string StatusMessage
         {
             get => _statusMessage;
             set => SetProperty(ref _statusMessage, value);
+        }
+
+        public bool IsBusy
+        {
+            get => _isBusy;
+            set => SetProperty(ref _isBusy, value);
         }
 
         public MainViewModel() : this(null) {}
@@ -36,7 +45,8 @@ namespace SwitchManager.ViewModels
             _serialService = serialService ?? new SerialService();
             _configService = new ConfigService();
             PortGroups = new ObservableCollection<GroupViewModel>();
-            ToggleCommand = new RelayCommand<PortViewModel>(ExecuteToggleAsync, (p) => true);
+            ToggleCommand = new RelayCommand<PortViewModel>(ExecuteToggleAsync, _ => !IsBusy);
+            AuditCommand = new RelayCommand<object>(async _ => await ExecuteAuditAsync(), _ => !IsBusy);
 
             if (DesignerProperties.GetIsInDesignMode(new DependencyObject()))
             {
@@ -44,6 +54,24 @@ namespace SwitchManager.ViewModels
             }
 
             InitializeApp();
+        }
+
+        private async Task ExecuteAuditAsync()
+        {
+            if (IsBusy)
+            {
+                return;
+            }
+
+            try
+            {
+                IsBusy = true;
+                await AuditHardwareAsync();
+            }
+            finally
+            {
+                IsBusy = false;
+            }
         }
 
         private async void InitializeApp()
@@ -86,69 +114,81 @@ namespace SwitchManager.ViewModels
 
         public async Task AuditHardwareAsync()
         {
-            if (!_serialService.IsConnected)
+            try
             {
-                return;
-            }
-
-            // Get the full output from the switch (e.g., 'show interface status')
-            string rawData = await _serialService.GetHardwareStatusAsync();
-            if (string.IsNullOrEmpty(rawData))
-            {
-                StatusMessage = "No response from switch hardware.";
-                return;
-            }
-
-            // 1. Reset hardware existence status for all groups and ports before audit
-            foreach (var group in PortGroups)
-            {
-                group.ExistsOnHardware = false;
-                foreach (var port in group.Ports)
+                // 1. Connection Recovery
+                if (!_serialService.IsConnected)
                 {
-                    port.ExistsOnHardware = false;
+                    StatusMessage = "Reconnecting to switch...";
+                    await _serialService.ConnectAsync(_currentConfig.ComPort, _currentConfig.BaudRate);
                 }
-            }
 
-            // Regex for Cisco-like output parsing
-            var lineRegex = new Regex(@"^(\S+)\s+(.*?)\s+(connected|notconnect|disabled|err-disabled)\s+(\d+|trunk)", RegexOptions.Multiline);
-            var matches = lineRegex.Matches(rawData);
+                // 2. Data Retrieval
+                StatusMessage = "Fetching hardware status...";
+                string rawData = await _serialService.GetHardwareStatusAsync();
 
-            foreach (Match match in matches)
-            {
-                string fullName = match.Groups[1].Value;
-                string status = match.Groups[3].Value;
-                int.TryParse(match.Groups[4].Value, out int currentVlan);
-                int portNum = ParsePortNumber(fullName);
-
-                // 2. Update Group (Target Port) Header
-                var targetGroup = PortGroups.FirstOrDefault(g => g.TargetPortNumber == portNum);
-                if (targetGroup != null)
+                if (string.IsNullOrEmpty(rawData))
                 {
-                    targetGroup.ExistsOnHardware = true;
-                    targetGroup.TargetPortStatus = status;
+                    StatusMessage = "Error: No response from switch.";
+                    return;
+                }
 
-                    // Auto-fix VLAN if it differs from the desired configuration
-                    if (currentVlan != targetGroup.VlanId && currentVlan != 0)
+                // 3. UI Reset (Prepare for fresh data)
+                foreach (var group in PortGroups)
+                {
+                    group.ExistsOnHardware = false;
+                    foreach (var port in group.Ports) port.ExistsOnHardware = false;
+                }
+
+                // 4. Parsing
+                var lineRegex = new Regex(@"^(\S+)\s+(.*?)\s+(connected|notconnect|disabled|err-disabled)\s+(\d+|trunk)", RegexOptions.Multiline);
+                var matches = lineRegex.Matches(rawData);
+
+                foreach (Match match in matches)
+                {
+                    string fullName = match.Groups[1].Value;
+                    string status = match.Groups[3].Value;
+                    int.TryParse(match.Groups[4].Value, out int currentVlan);
+                    int portNum = ParsePortNumber(fullName);
+
+                    // Update Target Groups
+                    var targetGroup = PortGroups.FirstOrDefault(g => g.TargetPortNumber == portNum);
+                    if (targetGroup != null)
                     {
-                        await _serialService.SetPortVlanAsync(fullName, targetGroup.VlanId);
+                        targetGroup.ExistsOnHardware = true;
+                        targetGroup.TargetPortStatus = status;
+
+                        if (currentVlan != targetGroup.VlanId && currentVlan != 0)
+                        {
+                            await _serialService.SetPortVlanAsync(fullName, targetGroup.VlanId);
+                        }
+                    }
+
+                    // Update Source Ports
+                    var portVm = PortGroups.SelectMany(g => g.Ports).FirstOrDefault(p => p.Number == portNum);
+                    if (portVm != null)
+                    {
+                        portVm.ExistsOnHardware = true;
+                        portVm.FullInterfaceName = fullName;
+                        portVm.IsActive = (currentVlan == portVm.TargetVlanId);
+                        portVm.PortStatus = status;
                     }
                 }
 
-                // 3. Update Source Port (List Item)
-                // Using FirstOrDefault since JSON validation ensures unique physical-to-logic mapping
-                var portVm = PortGroups.SelectMany(g => g.Ports).FirstOrDefault(p => p.Number == portNum);
-                if (portVm != null)
-                {
-                    portVm.ExistsOnHardware = true;
-                    portVm.FullInterfaceName = fullName;
-
-                    // Port is active (Green) only if VLAN matches the target
-                    portVm.IsActive = (currentVlan == portVm.TargetVlanId);
-                    portVm.PortStatus = status;
-                }
+                StatusMessage = $"Last update: {DateTime.Now:HH:mm:ss}";
             }
-
-            StatusMessage = $"Audit completed at {DateTime.Now:HH:mm:ss}";
+            catch (UnauthorizedAccessException)
+            {
+                StatusMessage = "Error: COM port is busy or access denied.";
+            }
+            catch (IOException)
+            {
+                StatusMessage = "Error: Connection lost during audit.";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Unexpected error: {ex.Message}";
+            }
         }
 
         public async Task ExecuteToggleAsync(PortViewModel clickedPort)

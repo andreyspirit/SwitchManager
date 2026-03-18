@@ -8,7 +8,7 @@
 
     <Window.Resources>
         <Style x:Key="PortButtonStyle" TargetType="Button">
-            <Setter Property="Width" Value="180"/>
+            <Setter Property="Width" Value="190"/>
             <Setter Property="Height" Value="90"/>
             <Setter Property="Margin" Value="0,6"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -69,15 +69,15 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Background="White" CornerRadius="12" Margin="10" Padding="20" Width="220">
+                        <Border Background="White" CornerRadius="12" Margin="10" Padding="20" Width="230">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="15" ShadowDepth="2" Opacity="0.05"/>
                             </Border.Effect>
                             <StackPanel>
-                                <TextBlock Text="{Binding GroupName}" FontSize="24" FontWeight="Black" 
-                                           HorizontalAlignment="Center" Foreground="#2C3E50"/>
+                                <TextBlock Text="{Binding GroupName}" FontSize="20" FontWeight="Black" 
+                                           HorizontalAlignment="Center" Foreground="#2C3E50" TextWrapping="Wrap"/>
 
-                                <TextBlock FontSize="15" FontWeight="ExtraBold" HorizontalAlignment="Center" Margin="0,5,0,15">
+                                <TextBlock FontSize="13" FontWeight="ExtraBold" HorizontalAlignment="Center" Margin="0,5,0,15">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Text">
@@ -120,7 +120,7 @@
                                                 <Button Style="{StaticResource PortButtonStyle}"
                                                         Command="{Binding DataContext.ToggleCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                         CommandParameter="{Binding}">
-                                                    <TextBlock Text="{Binding Alias}" FontSize="22" FontWeight="Bold"/>
+                                                    <TextBlock Text="{Binding Alias}" FontSize="20" FontWeight="Bold" TextWrapping="Wrap"/>
                                                 </Button>
 
                                                 <TextBlock FontSize="13" FontWeight="Bold" HorizontalAlignment="Center">
@@ -170,16 +170,45 @@
         <Border Grid.Row="1" Padding="15,8" Background="#FDEDEC" BorderBrush="#FADBD8" BorderThickness="0,2,0,0">
             <Grid>
                 <TextBlock Text="{Binding StatusMessage}" 
-                           Foreground="#C0392B" 
-                           FontSize="13" 
-                           FontWeight="SemiBold" 
-                           VerticalAlignment="Center"/>
+                   Foreground="#C0392B" 
+                   FontSize="15" 
+                   FontWeight="SemiBold" 
+                   VerticalAlignment="Center"
+                   HorizontalAlignment="Left"/>
 
-                <TextBlock Text="Hardware Manager v1.2" 
-                           HorizontalAlignment="Right" 
-                           Foreground="#E6B0AA" 
-                           FontSize="11" 
-                           VerticalAlignment="Center"/>
+                <Button Command="{Binding AuditCommand}" 
+                HorizontalAlignment="Right"
+                Padding="15,4"
+                Background="#E74C3C" 
+                Foreground="White" 
+                FontSize="13" 
+                FontWeight="Bold"
+                Cursor="Hand">
+                    <Button.Resources>
+                        <Style TargetType="Button">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                                            <StackPanel Orientation="Horizontal" Margin="5,0">
+                                                <TextBlock Text="↻" Margin="0,0,5,0" FontSize="14" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Refresh" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#C0392B"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter Property="Opacity" Value="0.8"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Resources>
+                </Button>
             </Grid>
         </Border>
     </Grid>
