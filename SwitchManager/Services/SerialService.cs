@@ -85,7 +85,10 @@ namespace SwitchManager.Services
         /// </summary>
         public async Task<string> GetHardwareStatusAsync()
         {
-            if (!IsConnected) return string.Empty;
+            if (!IsConnected)
+            {
+                return string.Empty;
+            }
 
             try
             {

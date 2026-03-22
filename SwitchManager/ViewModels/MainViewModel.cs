@@ -191,40 +191,56 @@ namespace SwitchManager.ViewModels
             }
         }
 
+        /// <summary>
+        /// Toggles the VLAN state for a specific port and its group members.
+        /// </summary>
         public async Task ExecuteToggleAsync(PortViewModel clickedPort)
         {
-            if (clickedPort == null || !_serialService.IsConnected || _currentConfig == null)
+            // Guard clause: Ensure we have a valid port, connection, and we aren't already busy
+            if (clickedPort == null || !_serialService.IsConnected || _currentConfig == null || IsBusy)
             {
                 return;
             }
 
             try
             {
+                IsBusy = true;
+                StatusMessage = "Updating VLAN configurations...";
+
+                // Find the group containing the clicked port
                 var group = PortGroups.FirstOrDefault(g => g.Ports.Contains(clickedPort));
-                if (group == null)
-                {
-                    return;
-                }
+                if (group == null) return;
 
                 foreach (var port in group.Ports)
                 {
-                    // If this is the button we clicked AND it's not already 'Green'
-                    if (port == clickedPort && !clickedPort.IsActive)
+                    if (port == clickedPort)
                     {
+                        // Skip if the port is already active to avoid redundant hardware commands
+                        if (port.IsActive) continue;
+
                         port.IsActive = true;
+                        // Apply the target VLAN defined in the configuration
                         await _serialService.SetPortVlanAsync(port.FullInterfaceName, port.TargetVlanId);
                     }
                     else
                     {
-                        // Move others in the group to Isolation VLAN
+                        // Deactivate other ports in the same group by moving them to the Isolation VLAN
                         port.IsActive = false;
                         await _serialService.SetPortVlanAsync(port.FullInterfaceName, _currentConfig.IsolationVlanId);
                     }
                 }
+
+                StatusMessage = $"Port {clickedPort.Number} successfully activated.";
             }
             catch (Exception ex)
             {
+                // Log the hardware error and notify the user via the UI
                 StatusMessage = $"Switch Error: {ex.Message}";
+            }
+            finally
+            {
+                // Always release the UI lock, even if an error occurs
+                IsBusy = false;
             }
         }
 

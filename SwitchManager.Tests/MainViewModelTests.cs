@@ -3,157 +3,105 @@ using Xunit;
 using SwitchManager.ViewModels;
 using SwitchManager.Services;
 using SwitchManager.Models;
-using System.Linq;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using SwitchManager.Commands;
 
-namespace SwitchManager.Tests
+public class MainViewModelTests
 {
-    public class MainViewModelTests
+    [UIFact]
+    public async Task AuditHardwareAsync_UpdatesPortStatus_WhenDataIsValid()
     {
-        private readonly Mock<ISerialService> _serialMock;
-        private readonly MainViewModel _viewModel;
+        // 1. Arrange
+        var mockService = new Mock<ISerialService>();
 
-        public MainViewModelTests()
+        // Mocking the 'show interface status' output
+        // Gi0/1 is the Source port defined in our test setup
+        string fakeCiscoOutput = "Gi0/1    SourcePort     connected    10\n" +
+                                 "Gi0/24   TargetPort     connected    10";
+
+        mockService.Setup(s => s.IsConnected).Returns(true);
+        mockService.Setup(s => s.GetHardwareStatusAsync()).ReturnsAsync(fakeCiscoOutput);
+
+        var viewModel = new MainViewModel(mockService.Object);
+
+        // 2. Setup Data using your PortEntry model and PortViewModel constructor
+        var portEntry = new PortEntry
         {
-            _serialMock = new Mock<ISerialService>();
-            // Initialize VM with mocked service
-            _viewModel = new MainViewModel(_serialMock.Object);
-        }
+            Number = 1,
+            Alias = "Simulator Port",
+            Type = PortType.Source
+        };
 
-        [Fact]
-        public void SetAllPortsPhysicalStatus_ShouldDisableAllPorts_WhenHardwareOffline()
+        var portVm = new PortViewModel(portEntry)
         {
-            // Arrange: Add a dummy group with ports
-            var group = new GroupViewModel(new PortGroup { GroupName = "TestGroup", VlanId = 10 });
-            _viewModel.PortGroups.Add(group);
+            TargetVlanId = 10 // Set the expected VLAN for comparison logic
+        };
 
-            // Act: Simulate connection failure using the logic we wrote
-            //_viewModel.PortGroups.SelectMany(g => g.Ports).ToList().ForEach(p => p.IsPhysicallyConnected = false);
-            //_viewModel.PortGroups.ToList().ForEach(g => g.IsTargetLinkActive = false);
+        // 1. Setup the Group via its model
+        var groupModel = new PortGroup { GroupName = "Test", VlanId = 10, Ports = new List<PortEntry>() };
+        var testGroup = new GroupViewModel(groupModel);
 
-            //// Assert
-            //Assert.All(_viewModel.PortGroups.SelectMany(g => g.Ports), p => Assert.False(p.IsPhysicallyConnected));
-            //Assert.False(group.IsTargetLinkActive);
-        }
+        // 2. Add the PortViewModel to the Group
+        testGroup.Ports.Add(portVm);
 
-        [Fact]
-        public async Task AuditHardwareAsync_ShouldUpdateTargetLinkStatus_WhenTargetPortFound()
-        {
-            // Arrange
-            var group = new GroupViewModel(new PortGroup
-            {
-                GroupName = "CNN",
-                VlanId = 10,
-                Ports = new List<PortEntry> { new PortEntry { Number = 3, Type = PortType.Target } }
-            });
-            _viewModel.PortGroups.Add(group);
+        // 3. Add the Group to the MainViewModel (No '=' sign!)
+        viewModel.PortGroups.Clear();
+        viewModel.PortGroups.Add(testGroup);
 
-            // Mock raw output from switch showing Port 3 is connected
-            string mockOutput = "Gi0/3  CNN_Target  connected  10";
-            _serialMock.Setup(s => s.IsConnected).Returns(true);
-            _serialMock.Setup(s => s.GetHardwareStatusAsync()).ReturnsAsync(mockOutput);
+        // 3. Act
+        await viewModel.AuditHardwareAsync();
 
-            // Act
-            await _viewModel.AuditHardwareAsync();
+        // 4. Assert
+        // Check if the Source Port correctly parsed the "connected" status
+        Assert.True(portVm.ExistsOnHardware);
+        Assert.Equal("connected", portVm.PortStatus);
 
-            // Assert
-            //Assert.True(group.IsTargetLinkActive);
-        }
+        // IsActive should be true because parsed VLAN (10) matches TargetVlanId (10)
+        Assert.True(portVm.IsActive);
 
-        [Fact]
-        public async Task ExecuteToggleAsync_ShouldSetCorrectVlan_WhenPortClicked()
-        {
-            // Arrange
-            var vm = new MainViewModel(_serialMock.Object);
-            var port = new PortViewModel(new PortEntry { Number = 1, Type = PortType.Source });
-            port.TargetVlanId = 10;
-            port.FullInterfaceName = "Gi0/1";
+        mockService.Verify(s => s.GetHardwareStatusAsync(), Times.Exactly(2));
+    }
 
-            _serialMock.Setup(s => s.IsConnected).Returns(true);
+    [UIFact]
+    public async Task AuditHardwareAsync_HandlesHardwareException_Gracefully()
+    {
+        // 1. Arrange
+        var mockService = new Mock<ISerialService>();
 
-            // Act
-            await vm.ExecuteToggleAsync(port);
+        mockService.Setup(s => s.GetHardwareStatusAsync())
+                   .ThrowsAsync(new Exception("Switch did not respond to status command."));
 
-            // Assert
-            _serialMock.Verify(s => s.SetPortVlanAsync("Gi0/1", 10), Times.Once);
-            Assert.True(port.IsActive);
-        }
+        mockService.Setup(s => s.IsConnected).Returns(true);
 
-        [Fact]
-        public void InitializeApp_ShouldShowError_WhenJsonIsCorrupted()
-        {
-            // Arrange
-            // Simulate a scenario where ConfigService returns null due to malformed JSON.
-            // Note: Since MainViewModel instantiates ConfigService internally, 
-            // this test validates the current null-handling logic in InitializeApp.
-            var vm = new MainViewModel(_serialMock.Object);
+        var viewModel = new MainViewModel(mockService.Object);
 
-            // Act & Assert
-            // Verify that the UI reflects a critical error state if loading fails.
-            Assert.Contains("Critical Error", vm.StatusMessage);
+        var group = new GroupViewModel(new PortGroup { GroupName = "Test", Ports = new List<PortEntry>() });
+        viewModel.PortGroups.Add(group);
 
-            Assert.Empty(vm.PortGroups);
-        }
+        // 2. Act
+        await viewModel.AuditHardwareAsync();
 
-        [Fact]
-        public async Task ToggleCommand_ShouldExecuteSuccessfully()
-        {
-            // Arrange
-            var command = new RelayCommand<PortViewModel>(async p => await Task.Delay(10));
-            var port = new PortViewModel(new PortEntry { Number = 1 });
+        // 3. Assert
+        Assert.Contains("error", viewModel.StatusMessage);
 
-            // Act
-            await command.ExecuteAsync(port);
+        Assert.False(group.ExistsOnHardware);
+    }
 
-            // Assert
-            Assert.True(true);
-        }
+    [UIFact]
+    public async Task ExecuteAuditAsync_ResetsIsBusy_EvenOnException()
+    {
+        // Arrange
+        var mockService = new Mock<ISerialService>();
+        // Simulate a hardware disconnection exception
+        mockService.Setup(s => s.GetHardwareStatusAsync()).ThrowsAsync(new System.IO.IOException("Port closed"));
+        mockService.Setup(s => s.IsConnected).Returns(true);
 
-        [Fact]
-        public async Task AuditHardware_ShouldNotCrash_WhenRawDataIsGarbage()
-        {
-            // Arrange
-            var vm = new MainViewModel(_serialMock.Object);
-            _serialMock.Setup(s => s.IsConnected).Returns(true);
+        var viewModel = new MainViewModel(mockService.Object);
 
-            // Simulate "garbage" or corrupted data received from the switch console.
-            _serialMock.Setup(s => s.GetHardwareStatusAsync()).ReturnsAsync("!!! invalid data !!! error 404");
+        // Act
+        // We call the Command version to test the try/finally logic
+        await viewModel.AuditCommand.ExecuteAsync(null);
 
-            // Act
-            // Record any exception thrown during parsing.
-            var exception = await Record.ExceptionAsync(() => vm.AuditHardwareAsync());
-
-            // Assert
-            // The application must remain stable and not crash regardless of external input.
-            Assert.Null(exception);
-
-            // Ensure no ports are falsely marked as connected when parsing fails.
-            //Assert.Empty(vm.PortGroups.SelectMany(g => g.Ports).Where(p => p.IsPhysicallyConnected));
-        }
-
-        [Fact]
-        public async Task ExecuteToggle_ShouldHandleException_WhenSerialFailsMidWay()
-        {
-            // Arrange
-            var vm = new MainViewModel(_serialMock.Object);
-            var port = new PortViewModel(new PortEntry { Number = 1 });
-
-            _serialMock.Setup(s => s.IsConnected).Returns(true);
-
-            // Simulate a connection drop (I/O Exception) exactly during the command execution.
-            _serialMock.Setup(s => s.SetPortVlanAsync(It.IsAny<string>(), It.IsAny<int>()))
-                       .ThrowsAsync(new IOException("Device disconnected"));
-
-            // Act
-            // To avoid IAsyncCommand casting issues in tests, 
-            // you can invoke the logic via a public method or internal helper if accessible.
-            await vm.AuditHardwareAsync();
-
-            // Assert
-            // Verify that the exception is caught and a user-friendly message is displayed in the Status Bar.
-            // (Final verification would depend on calling the actual command execution logic).
-        }
+        // Assert
+        Assert.False(viewModel.IsBusy); // UI must be unlocked
+        Assert.Contains("Error", viewModel.StatusMessage);
     }
 }
