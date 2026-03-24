@@ -4,7 +4,7 @@
   "IsolationVlanId": 999,
   "Groups": [
     {
-      "GroupName": "CNN",
+      "GroupName": "CNN Enviroment for simul",
       "VlanId": 10,
       "Ports": [
         {
@@ -34,7 +34,7 @@
         },
         {
           "Number": 15,
-          "Alias": "SIM",
+          "Alias": "SIMulation for upgraded",
           "Type": "Source"
         },
         {

@@ -74,8 +74,13 @@
                                 <DropShadowEffect BlurRadius="15" ShadowDepth="2" Opacity="0.05"/>
                             </Border.Effect>
                             <StackPanel>
-                                <TextBlock Text="{Binding GroupName}" FontSize="20" FontWeight="Black" 
-                                           HorizontalAlignment="Center" Foreground="#2C3E50" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding GroupName}" 
+                                           FontSize="20" 
+                                           FontWeight="Black" 
+                                           TextAlignment="Center"
+                                           Foreground="#2C3E50" 
+                                           TextWrapping="Wrap"
+                                           Height="55"/>         
 
                                 <TextBlock FontSize="13" FontWeight="ExtraBold" HorizontalAlignment="Center" Margin="0,5,0,15">
                                     <TextBlock.Style>
@@ -120,7 +125,11 @@
                                                 <Button Style="{StaticResource PortButtonStyle}"
                                                         Command="{Binding DataContext.ToggleCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                         CommandParameter="{Binding}">
-                                                    <TextBlock Text="{Binding Alias}" FontSize="20" FontWeight="Bold" TextWrapping="Wrap"/>
+                                                    <TextBlock Text="{Binding Alias}" 
+                                                               FontSize="20" 
+                                                               FontWeight="Bold" 
+                                                               TextWrapping="Wrap" 
+                                                               TextAlignment="Center"/>
                                                 </Button>
 
                                                 <TextBlock FontSize="13" FontWeight="Bold" HorizontalAlignment="Center">
@@ -170,44 +179,29 @@
         <Border Grid.Row="1" Padding="15,8" Background="#FDEDEC" BorderBrush="#FADBD8" BorderThickness="0,2,0,0">
             <Grid>
                 <TextBlock Text="{Binding StatusMessage}" 
-                   Foreground="#C0392B" 
-                   FontSize="15" 
-                   FontWeight="SemiBold" 
-                   VerticalAlignment="Center"
-                   HorizontalAlignment="Left"/>
+                           Foreground="#C0392B" 
+                           FontSize="15" 
+                           FontWeight="SemiBold" 
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Left"/>
 
                 <Button Command="{Binding AuditCommand}" 
-                HorizontalAlignment="Right"
-                Padding="15,4"
-                Background="#E74C3C" 
-                Foreground="White" 
-                FontSize="13" 
-                FontWeight="Bold"
-                Cursor="Hand">
-                    <Button.Resources>
-                        <Style TargetType="Button">
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
-                                            <StackPanel Orientation="Horizontal" Margin="5,0">
-                                                <TextBlock Text="↻" Margin="0,0,5,0" FontSize="14" VerticalAlignment="Center"/>
-                                                <TextBlock Text="Refresh" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#C0392B"/>
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter Property="Opacity" Value="0.8"/>
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Resources>
+                            Padding="15,4"
+                            Background="#2980B9" 
+                            Foreground="White" 
+                            HorizontalAlignment="Right"
+                            FontSize="13" 
+                            FontWeight="Bold"
+                            Cursor="Hand">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                                <StackPanel Orientation="Horizontal" Margin="10,5">
+                                    <TextBlock Text="Re-Sync App" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </ControlTemplate>
+                    </Button.Template>
                 </Button>
             </Grid>
         </Border>

@@ -205,7 +205,6 @@ namespace SwitchManager.ViewModels
             try
             {
                 IsBusy = true;
-                StatusMessage = "Updating VLAN configurations...";
 
                 // Find the group containing the clicked port
                 var group = PortGroups.FirstOrDefault(g => g.Ports.Contains(clickedPort));
@@ -213,24 +212,21 @@ namespace SwitchManager.ViewModels
 
                 foreach (var port in group.Ports)
                 {
-                    if (port == clickedPort)
+                    // If this is the button we clicked AND it's not already active
+                    if (port == clickedPort && !clickedPort.IsActive)
                     {
-                        // Skip if the port is already active to avoid redundant hardware commands
-                        if (port.IsActive) continue;
-
                         port.IsActive = true;
-                        // Apply the target VLAN defined in the configuration
                         await _serialService.SetPortVlanAsync(port.FullInterfaceName, port.TargetVlanId);
                     }
-                    else
+                    else if (port != clickedPort)
                     {
-                        // Deactivate other ports in the same group by moving them to the Isolation VLAN
+                        // Move others in the group to Isolation VLAN
                         port.IsActive = false;
                         await _serialService.SetPortVlanAsync(port.FullInterfaceName, _currentConfig.IsolationVlanId);
                     }
                 }
 
-                StatusMessage = $"Port {clickedPort.Number} successfully activated.";
+                StatusMessage = "VLAN configuration commands successfully sent to the switch.";
             }
             catch (Exception ex)
             {
